@@ -13,6 +13,7 @@
 [account]
 username = your_username
 password = your_password
+retry_times = 3
 
 [dingtalk]
 access_token = your_access_token
@@ -20,6 +21,9 @@ secret = your_secret
 
 [schedule]
 time = 08:00
+
+[log]
+loglevel = INFO
 ```
 
 3. 将 config.ini 文件挂载到 Docker 容器中的 /app/config.ini 路径。
