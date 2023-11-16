@@ -17,22 +17,19 @@ class DingtalkPusher:
 
     def get_signature(self) -> str:
         timestamp = str(round(time.time() * 1000))
-        secret_enc = self.secret.encode('utf-8')
-        string_to_sign = '{}\n{}'.format(timestamp, self.secret)
-        string_to_sign_enc = string_to_sign.encode('utf-8')
-        hmac_code = hmac.new(secret_enc, string_to_sign_enc, digestmod=hashlib.sha256).digest()
+        secret_enc = self.secret.encode("utf-8")
+        string_to_sign = "{}\n{}".format(timestamp, self.secret)
+        string_to_sign_enc = string_to_sign.encode("utf-8")
+        hmac_code = hmac.new(
+            secret_enc, string_to_sign_enc, digestmod=hashlib.sha256
+        ).digest()
         sign = quote_plus(base64.b64encode(hmac_code))
         return timestamp, sign
 
     def send(self, message: str, title: str) -> None:
         timestamp, sign = self.get_signature()
-        headers = {'Content-Type': 'application/json'}
-        data = {
-            "msgtype": "text",
-            "text": {
-                "content": f"{title}\n\n{message}"
-            }
-        }
+        headers = {"Content-Type": "application/json"}
+        data = {"msgtype": "text", "text": {"content": f"{title}\n\n{message}"}}
         url = f"{self.API_URL}?access_token={self.access_token}&timestamp={timestamp}&sign={sign}"
 
         try:
@@ -43,14 +40,14 @@ class DingtalkPusher:
             return
 
         resp = response.json()
-        if resp['errcode'] != 0:
+        if resp["errcode"] != 0:
             logging.error(f"DingTalk 发送失败,错误:{resp['errmsg']}")
             return
 
         logging.info("DingTalk 发送成功")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # 示例
     access_token = "xxx"
     secret = "xxx"
