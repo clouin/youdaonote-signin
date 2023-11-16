@@ -42,12 +42,12 @@ class YoudaoSign:
                 f.write(captcha_res.content)
             ocr = ddddocr.DdddOcr(show_ad=False)
             return ocr.classification(captcha_res.content)
-        except Exception as e:
-            logging.exception(e)
+        except requests.RequestException as e:
+            logging.exception(f"Failed to get captcha: {e}")
 
     def login(self) -> bool:
         """登录"""
-        for i in range(self.retry_times):
+        for i in range(self.retry_times + 1):
             try:
                 captcha_code = self.get_captcha()
                 time.sleep(5)
@@ -65,12 +65,17 @@ class YoudaoSign:
                     logging.info("登录成功")
                     return True
 
-                logging.error(f"登录失败：{res.text},验证码：{captcha_code}")
-                logging.info(f"登录失败,将在{self.retry_interval}秒后第{i + 1}次重试")
-                time.sleep(self.retry_interval)
-            except Exception as e:
-                logging.info(f"登录失败:{e},将在{self.retry_interval}秒后第{i + 1}次重试")
-        logging.exception(f"登录失败,重试{self.retry_times}次未成功")
+                logging.error(f"登录失败：{res.text}，验证码：{captcha_code}")
+                # 失败重试
+                if i < self.retry_times:
+                    logging.info(f"登录失败，将在{self.retry_interval}秒后第{i + 1}次重试")
+                    time.sleep(self.retry_interval)
+                    logging.info(f"重新创建 Session 对象前的会话状态：{self.session.cookies}")
+                    self.session = requests.Session()
+                    logging.info(f"重新创建 Session 对象后的会话状态：{self.session.cookies}")
+            except requests.RequestException as e:
+                logging.info(f"登录失败：{e}，将在{self.retry_interval}秒后第{i + 1}次重试")
+        logging.exception(f"登录失败，重试{self.retry_times}次未成功")
         return False
 
     def sign(self) -> str:
@@ -129,7 +134,7 @@ def run_sign() -> None:
         time.sleep(5)
         message = signer.sign()
     else:
-        message = f"{signer.username_mask} 登录失败,重试{signer.retry_times}次未成功"
+        message = f"{signer.username_mask} 登录失败，重试{signer.retry_times}次未成功"
 
     # 推送消息
     access_token = config["dingtalk"]["access_token"]
