@@ -1,6 +1,8 @@
 # use Python 3.10
 FROM  python:3.10-slim-bullseye
 
+LABEL maintainer = Jerry
+
 # define timezone
 ENV TZ Asia/Shanghai
 

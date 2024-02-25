@@ -1,9 +1,10 @@
-import logging
 import hashlib
+import logging
 import time
-import schedule
-import requests
+
 import ddddocr
+import requests
+import schedule
 
 from config import ConfigManager
 from notify.dingtalk import DingtalkPusher
@@ -68,13 +69,17 @@ class YoudaoSign:
                 logging.error(f"登录失败：{res.text}，验证码：{captcha_code}")
                 # 失败重试
                 if i < self.retry_times:
-                    logging.info(f"登录失败，将在{self.retry_interval}秒后第{i + 1}次重试")
+                    logging.info(
+                        f"登录失败，将在{self.retry_interval}秒后第{i + 1}次重试"
+                    )
                     time.sleep(self.retry_interval)
-                    logging.info(f"重新创建 Session 对象前的会话状态：{self.session.cookies}")
-                    self.session = requests.Session()
-                    logging.info(f"重新创建 Session 对象后的会话状态：{self.session.cookies}")
+                    logging.info(f"清空 cookie 前的会话状态：{self.session.cookies}")
+                    self.session.cookies.clear()
+                    logging.info(f"清空 cookie 后的会话状态：{self.session.cookies}")
             except requests.RequestException as e:
-                logging.info(f"登录失败：{e}，将在{self.retry_interval}秒后第{i + 1}次重试")
+                logging.info(
+                    f"登录失败：{e}，将在{self.retry_interval}秒后第{i + 1}次重试"
+                )
         logging.exception(f"登录失败，重试{self.retry_times}次未成功")
         return False
 
@@ -85,7 +90,7 @@ class YoudaoSign:
             res = self.session.post(checkin_url)
             info = res.json()
             if res.status_code != 200:
-                msg = f"登录失败：{res.text}"
+                msg = f"签到失败：{res.text}"
                 logging.exception(msg)
                 return msg
 

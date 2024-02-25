@@ -1,11 +1,12 @@
-import time
+import base64
+import hashlib
+import hmac
 import logging
+import time
+from typing import Tuple
 from urllib.parse import quote_plus
 
 import requests
-import base64
-import hmac
-import hashlib
 
 
 class DingtalkPusher:
@@ -15,10 +16,10 @@ class DingtalkPusher:
         self.access_token = access_token
         self.secret = secret
 
-    def get_signature(self) -> str:
+    def get_signature(self) -> Tuple[str, str]:
         timestamp = str(round(time.time() * 1000))
         secret_enc = self.secret.encode("utf-8")
-        string_to_sign = "{}\n{}".format(timestamp, self.secret)
+        string_to_sign = f"{timestamp}\n{self.secret}"
         string_to_sign_enc = string_to_sign.encode("utf-8")
         hmac_code = hmac.new(
             secret_enc, string_to_sign_enc, digestmod=hashlib.sha256
