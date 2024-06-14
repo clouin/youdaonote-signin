@@ -1,5 +1,6 @@
 import hashlib
 import logging
+import random
 import time
 
 import ddddocr
@@ -10,6 +11,7 @@ from config import ConfigManager
 from notify.dingtalk import DingtalkPusher
 
 config = ConfigManager().config
+
 logging.basicConfig(
     level=config["log"]["loglevel"],
     format='time="%(asctime)s" level="%(levelname)s" msg="%(message)s"',
@@ -23,21 +25,26 @@ class YoudaoSign:
     def __init__(self, username: str, password: str, retry_times: int = 3) -> None:
         """初始化"""
         self.username = username
-        self.username_mask = "****"
         self.password = hashlib.md5(password.encode("utf-8")).hexdigest()
         self.session = requests.Session()
         self.retry_times = retry_times
-        self.retry_interval = 5
+        self.username_mask = self._mask_username(username)
 
+    def _mask_username(self, username: str) -> str:
+        """掩盖用户名"""
         if len(username) > 4:
-            self.username_mask = (
-                username[:2] + "*" * int((len(username) - 4) / 2) + username[-2:]
-            )
+            return username[:2] + "*" * (len(username) - 4) + username[-2:]
+        return "****"
+
+    def random_sleep(self, min_sleep=5, max_sleep=20):
+        sleep_time = random.uniform(min_sleep, max_sleep)
+        logging.debug(f"Sleeping for {sleep_time:.2f} seconds")
+        time.sleep(sleep_time)
 
     def get_captcha(self) -> str:
         """获取验证码"""
+        captcha_url = "https://note.youdao.com/login/acc/urs/verify/get?app=client&product=YNOTE&ClientVer=61000010000&GUID=PCe3ea009f17ce4a46c&client_ver=61000010000&device_id=PCe3ea009f17ce4a46c&device_name=DESKTOP-0PK60BL&device_type=PC&keyfrom=pc&os=Windows&os_ver=Windows%2010&vendor=website&vendornew=website"
         try:
-            captcha_url = "https://note.youdao.com/login/acc/urs/verify/get?app=client&product=YNOTE&ClientVer=61000010000&GUID=PCe3ea009f17ce4a46c&client_ver=61000010000&device_id=PCe3ea009f17ce4a46c&device_name=DESKTOP-0PK60BL&device_type=PC&keyfrom=pc&os=Windows&os_ver=Windows%2010&vendor=website&vendornew=website"
             captcha_res = self.session.get(captcha_url)
             with open("captcha.png", "wb") as f:
                 f.write(captcha_res.content)
@@ -45,61 +52,46 @@ class YoudaoSign:
             return ocr.classification(captcha_res.content)
         except requests.RequestException as e:
             logging.exception(f"Failed to get captcha: {e}")
+            return ""
 
     def login(self) -> bool:
         """登录"""
-        for i in range(self.retry_times + 1):
-            try:
-                captcha_code = self.get_captcha()
-                time.sleep(5)
+        login_url = "https://note.youdao.com/login/acc/urs/verify/check?product=YNOTE&app=client&ClientVer=61000010000&GUID=PCe3ea009f17ce4a46c&client_ver=61000010000&device_id=PCe3ea009f17ce4a46c&device_name=DESKTOP-0PK60BL&device_type=PC&keyfrom=pc&os=Windows&os_ver=Windows%2010&vendor=website&vendornew=website&show=true&tp=urstoken&cf=6"
+        data = {"username": self.username, "password": self.password}
+        headers = {"Content-Type": "application/x-www-form-urlencoded"}
 
-                login_url = "https://note.youdao.com/login/acc/urs/verify/check?product=YNOTE&app=client&ClientVer=61000010000&GUID=PCe3ea009f17ce4a46c&client_ver=61000010000&device_id=PCe3ea009f17ce4a46c&device_name=DESKTOP-0PK60BL&device_type=PC&keyfrom=pc&os=Windows&os_ver=Windows%2010&vendor=website&vendornew=website&show=true&tp=urstoken&cf=6"
-                data = {"username": self.username, "password": self.password}
-                headers = {"Content-Type": "application/x-www-form-urlencoded"}
-                res = self.session.post(
-                    login_url,
-                    data=data,
-                    headers=headers,
-                    params={"vcode": captcha_code},
-                )
+        for i in range(self.retry_times + 1):
+            self.random_sleep()
+            captcha_code = self.get_captcha()
+            self.random_sleep()
+            try:
+                res = self.session.post(login_url, data=data, headers=headers, params={"vcode": captcha_code})
                 if res.status_code == 200:
                     logging.info("登录成功")
                     return True
-
                 logging.error(f"登录失败：{res.text}，验证码：{captcha_code}")
-                # 失败重试
                 if i < self.retry_times:
-                    logging.info(
-                        f"登录失败，将在{self.retry_interval}秒后第{i + 1}次重试"
-                    )
-                    time.sleep(self.retry_interval)
-                    logging.info(f"清空 cookie 前的会话状态：{self.session.cookies}")
+                    logging.info(f"登录失败，将进行第{i + 1}次重试")
                     self.session.cookies.clear()
-                    logging.info(f"清空 cookie 后的会话状态：{self.session.cookies}")
             except requests.RequestException as e:
-                logging.info(
-                    f"登录失败：{e}，将在{self.retry_interval}秒后第{i + 1}次重试"
-                )
+                logging.info(f"登录失败：{e}，将进行第{i + 1}次重试")
         logging.exception(f"登录失败，重试{self.retry_times}次未成功")
         return False
 
     def sign(self) -> str:
         """签到"""
+        checkin_url = "https://note.youdao.com/yws/mapi/user?method=checkin"
         try:
-            checkin_url = "https://note.youdao.com/yws/mapi/user?method=checkin"
             res = self.session.post(checkin_url)
-            info = res.json()
             if res.status_code != 200:
                 msg = f"签到失败：{res.text}"
                 logging.exception(msg)
                 return msg
 
+            info = res.json()
             total = info["total"] / 1024 / 1024
             space = info["space"] / 1024 / 1024
-            time_string = time.strftime(
-                "%Y-%m-%d %H:%M:%S", time.localtime(info["time"] / 1000)
-            )
-
+            time_string = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(info["time"] / 1000))
             message = [
                 f"用户： {self.username_mask} 签到成功",
                 f"签到时间：{time_string}",
@@ -110,19 +102,7 @@ class YoudaoSign:
             return "\n".join(message)
         except Exception as e:
             logging.exception(f"签到失败:{e}")
-
-
-def main() -> None:
-    """程序入口"""
-    schedule.every().day.at(config["schedule"]["time"]).do(run_sign)
-
-    next_run = schedule.next_run()
-    next_run_formatted = next_run.strftime("%Y-%m-%d %H:%M:%S")
-    logging.info(f"Scheduling first run: {next_run_formatted}")
-
-    while True:
-        schedule.run_pending()
-        time.sleep(1)
+            return f"签到失败:{e}"
 
 
 def run_sign() -> None:
@@ -136,7 +116,7 @@ def run_sign() -> None:
 
     signer = YoudaoSign(username, password, retry_times)
     if signer.login():
-        time.sleep(5)
+        signer.random_sleep()
         message = signer.sign()
     else:
         message = f"{signer.username_mask} 登录失败，重试{signer.retry_times}次未成功"
@@ -149,6 +129,18 @@ def run_sign() -> None:
         return
     pusher = DingtalkPusher(access_token, secret)
     pusher.send(message, "有道云笔记签到通知")
+
+
+def main() -> None:
+    """程序入口"""
+    schedule.every().day.at(config["schedule"]["time"]).do(run_sign)
+
+    next_run = schedule.next_run()
+    logging.info(f"Scheduling first run: {next_run.strftime('%Y-%m-%d %H:%M:%S')}")
+
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
 
 
 if __name__ == "__main__":
