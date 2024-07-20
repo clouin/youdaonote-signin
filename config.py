@@ -33,33 +33,21 @@ class ConfigManager:
         self._validate_schedule_time()
 
     def _validate_loglevel(self):
-        level = self.get("log", "loglevel")
+        level = self.config.get("log", "loglevel")
         options = ["DEBUG", "INFO", "WARNING", "ERROR"]
         if level not in options:
             raise ValueError(f"日志级别配置不合法:{level},可选项:{options}")
 
     def _validate_retry_times(self):
-        times = self.getint("account", "retry_times")
+        times = self.config.getint("account", "retry_times")
         if times < 0:
             raise ValueError("重试次数不合法")
 
     def _validate_schedule_time(self):
         time_pattern = r"^([01]\d|2[0-3]):[0-5]\d$"
-        time = self.get("schedule", "time")
+        time = self.config.get("schedule", "time")
         if not re.match(time_pattern, time):
             raise ValueError(f"定时时间格式不正确:{time}")
-
-    def get(self, section, option, fallback=None):
-        try:
-            return self.config.get(section, option)
-        except (configparser.NoSectionError, configparser.NoOptionError):
-            return fallback
-
-    def getint(self, section, option, fallback=None):
-        try:
-            return self.config.getint(section, option)
-        except (configparser.NoSectionError, configparser.NoOptionError):
-            return fallback
 
 
 if __name__ == "__main__":
