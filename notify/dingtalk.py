@@ -21,13 +21,15 @@ class DingtalkPusher:
         secret_enc = self.secret.encode("utf-8")
         string_to_sign = f"{timestamp}\n{self.secret}"
         string_to_sign_enc = string_to_sign.encode("utf-8")
-        hmac_code = hmac.new(
-            secret_enc, string_to_sign_enc, digestmod=hashlib.sha256
-        ).digest()
+        hmac_code = hmac.new(secret_enc, string_to_sign_enc, digestmod=hashlib.sha256).digest()
         sign = quote_plus(base64.b64encode(hmac_code))
         return timestamp, sign
 
     def send(self, message: str, title: str) -> None:
+        if not self.access_token or not self.secret:
+            logging.error("DingTalk 推送参数配置不完整")
+            return
+
         timestamp, sign = self.get_signature()
         headers = {"Content-Type": "application/json"}
         data = {"msgtype": "text", "text": {"content": f"{title}\n\n{message}"}}
@@ -37,15 +39,15 @@ class DingtalkPusher:
             response = requests.post(url, json=data, headers=headers)
             response.raise_for_status()
         except requests.RequestException as e:
-            logging.error(f"DingTalk 发送失败,错误:{e}")
+            logging.error(f"DingTalk 推送失败,错误:{e}")
             return
 
         resp = response.json()
         if resp["errcode"] != 0:
-            logging.error(f"DingTalk 发送失败,错误:{resp['errmsg']}")
+            logging.error(f"DingTalk 推送失败,错误:{resp['errmsg']}")
             return
 
-        logging.info("DingTalk 发送成功")
+        logging.info("DingTalk 推送成功")
 
 
 if __name__ == "__main__":
