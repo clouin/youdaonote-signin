@@ -30,22 +30,30 @@ class YoudaoSign:
         self.retry_times = retry_times
         self.username_mask = self._mask_username(username)
 
-    def _mask_username(self, username: str) -> str:
+    @staticmethod
+    def _mask_username(username: str) -> str:
         """掩盖用户名"""
         if len(username) > 4:
             return username[:2] + "*" * (len(username) - 4) + username[-2:]
         return "****"
 
-    def random_sleep(self, min_sleep=5, max_sleep=20):
-        sleep_time = random.uniform(min_sleep, max_sleep)
-        logging.debug(f"Sleeping for {sleep_time:.2f} seconds")
-        time.sleep(sleep_time)
+    @staticmethod
+    def random_sleep(min_sleep=5, max_sleep=20):
+        random_seconds = random.randint(min_sleep, max_sleep)
+        logging.debug(f"Sleeping for {random_seconds} seconds")
+        time.sleep(random_seconds)
+
+    def send_request(self, method: str, url: str, **kwargs) -> requests.Response:
+        self.random_sleep()
+        response = self.session.request(method, url, **kwargs)
+        response.raise_for_status()
+        return response
 
     def get_captcha(self) -> str:
         """获取验证码"""
         captcha_url = "https://note.youdao.com/login/acc/urs/verify/get?app=client&product=YNOTE&ClientVer=61000010000&GUID=PCe3ea009f17ce4a46c&client_ver=61000010000&device_id=PCe3ea009f17ce4a46c&device_name=DESKTOP-0PK60BL&device_type=PC&keyfrom=pc&os=Windows&os_ver=Windows%2010&vendor=website&vendornew=website"
         try:
-            captcha_res = self.session.get(captcha_url)
+            captcha_res = self.send_request("GET", captcha_url)
             with open("captcha.png", "wb") as f:
                 f.write(captcha_res.content)
             ocr = ddddocr.DdddOcr(show_ad=False)
@@ -61,11 +69,11 @@ class YoudaoSign:
         headers = {"Content-Type": "application/x-www-form-urlencoded"}
 
         for i in range(self.retry_times + 1):
-            self.random_sleep()
             captcha_code = self.get_captcha()
-            self.random_sleep()
             try:
-                res = self.session.post(login_url, data=data, headers=headers, params={"vcode": captcha_code})
+                res = self.send_request(
+                    "POST", login_url, data=data, headers=headers, params={"vcode": captcha_code}
+                )
                 if res.status_code == 200:
                     logging.info("登录成功")
                     return True
@@ -82,7 +90,7 @@ class YoudaoSign:
         """签到"""
         checkin_url = "https://note.youdao.com/yws/mapi/user?method=checkin"
         try:
-            res = self.session.post(checkin_url)
+            res = self.send_request("POST", checkin_url)
             if res.status_code != 200:
                 msg = f"签到失败：{res.text}"
                 logging.exception(msg)
@@ -116,18 +124,12 @@ def run_sign() -> None:
 
     signer = YoudaoSign(username, password, retry_times)
     if signer.login():
-        signer.random_sleep()
         message = signer.sign()
     else:
         message = f"{signer.username_mask} 登录失败，重试{signer.retry_times}次未成功"
 
     # 推送消息
-    access_token = config["dingtalk"]["access_token"]
-    secret = config["dingtalk"]["secret"]
-    if not access_token or not secret:
-        logging.exception("DingTalk 推送参数配置不完整")
-        return
-    pusher = DingtalkPusher(access_token, secret)
+    pusher = DingtalkPusher(config["dingtalk"]["access_token"], config["dingtalk"]["secret"])
     pusher.send(message, "有道云笔记签到通知")
 
 
