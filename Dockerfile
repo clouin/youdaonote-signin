@@ -1,5 +1,5 @@
 # Stage 1: Build stage
-FROM python:3.10-slim-bullseye as builder
+FROM python:3.12-slim-bookworm AS builder
 
 ENV TZ=Asia/Shanghai
 
@@ -16,13 +16,13 @@ COPY . .
 # Install pip dependencies
 RUN python -m pip install --no-cache-dir --upgrade pip \
     && python -m pip install --no-cache-dir --upgrade -r requirements.txt \
-    && python -m pip install pyarmor==7.*
+    && python -m pip install pyarmor
 
 # Obfuscate Python code
-RUN pyarmor obfuscate --recursive main.py
+RUN pyarmor gen -O /build/dist -r . --exclude venv --exclude .git --exclude __pycache__ --exclude *.pyc
 
 # Stage 2: Runtime stage
-FROM python:3.10-slim-bullseye
+FROM python:3.12-slim-bookworm
 
 LABEL maintainer="Jerry"
 
@@ -41,6 +41,7 @@ COPY requirements.txt .
 RUN python -m pip install --no-cache-dir --upgrade pip \
     && python -m pip install --no-cache-dir --upgrade -r requirements.txt
 
+# Copy obfuscated code and runtime
 COPY --from=builder /build/dist .
 
 CMD ["python", "main.py"]

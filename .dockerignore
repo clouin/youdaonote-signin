@@ -26,5 +26,7 @@
 LICENSE
 README.md
 
+.github
 config.ini
 example.config.ini
+captchas
