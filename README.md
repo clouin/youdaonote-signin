@@ -14,6 +14,7 @@
 username = your_username
 password = your_password
 retry_times = 3
+captcha_length = 5
 
 [dingtalk]
 access_token = your_access_token

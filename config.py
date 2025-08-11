@@ -5,7 +5,7 @@ from pathlib import Path
 CONFIG_PATH = Path("config.ini")
 
 DEFAULT_CONFIG = {
-    "account": {"username": "", "password": "", "retry_times": 3},
+    "account": {"username": "", "password": "", "retry_times": 3, "captcha_length": "5"},
     "dingtalk": {"access_token": "", "secret": ""},
     "schedule": {"time": "08:00"},
     "log": {"loglevel": "INFO"},

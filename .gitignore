@@ -160,4 +160,4 @@ cython_debug/
 .idea/
 
 config.ini
-captcha.png
+captchas
